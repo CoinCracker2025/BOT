@@ -81,8 +81,35 @@ _STYLES = """
   font-size: 12px;
   background: rgba(36, 161, 72, 0.10);
 }
+
+.ext-link-btn {
+  display: inline-block;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: center;
+  border-radius: 8px;
+  border: 1px solid rgba(49, 51, 63, 0.25);
+  background: linear-gradient(135deg, #f9fafb, #eef1f5);
+  color: #0f1116;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.ext-link-btn:hover {
+  color: #0f1116;
+  border-color: rgba(49, 51, 63, 0.45);
+  background: linear-gradient(135deg, #eef1f5, #e3e7ed);
+}
 </style>
 """
+
+
+def _render_external_link(label: str, url: str) -> None:
+    safe_url = url or "#"
+    st.markdown(
+        f'<a class="ext-link-btn" href="{safe_url}" target="_blank" rel="noopener noreferrer">{label}</a>',
+        unsafe_allow_html=True,
+    )
 
 
 def main() -> None:
@@ -105,6 +132,8 @@ def main() -> None:
         st.session_state["last_scan_debug"] = None
     if "last_scan_df" not in st.session_state:
         st.session_state["last_scan_df"] = pd.DataFrame()
+    if "token_blacklist_entries" not in st.session_state:
+        st.session_state["token_blacklist_entries"] = []
 
     # Header
     col_h1, col_h2 = st.columns([3.8, 1], gap="large")
@@ -240,32 +269,39 @@ def main() -> None:
         st.subheader("Exclusions")
         with st.expander("Blacklist (CA) - exclure des tokens", expanded=False):
             st.caption("Un tokenAddress (CA) par ligne. Les tokens listés seront retirés de l'affichage des résultats.")
-            current_bl = cfg.get("token_blacklist") or []
+            cfg_blacklist = cfg.get("token_blacklist") or []
+            # Sync session state with config (preserve manual edits)
+            if not st.session_state["token_blacklist_entries"]:
+                st.session_state["token_blacklist_entries"] = [
+                    str(x).strip() for x in cfg_blacklist if str(x).strip()
+                ]
             bl_text = st.text_area(
                 "CA blacklistés",
-                value="\n".join([str(x) for x in current_bl if str(x).strip()]),
-                height=120,
+                value="\n".join(st.session_state["token_blacklist_entries"]),
+                height=140,
                 placeholder="Ex:\nGE5BJqTsVWfgv8qa6zQ6WFnLQGRATu3StN59kmTFpump",
                 key="token_blacklist_text",
             )
+            parsed = [line.strip() for line in (bl_text or "").splitlines() if line.strip()]
+            # De-dup while preserving order
+            parsed = list(dict.fromkeys(parsed))
+            st.session_state["token_blacklist_entries"] = parsed
+            st.caption(f"{len(parsed)} entrée(s) dans la blacklist :")
+            if parsed:
+                st.code("\n".join(parsed))
             c_bl1, c_bl2 = st.columns([1, 1])
             with c_bl1:
                 save_bl = st.button("Enregistrer la blacklist", use_container_width=True)
             with c_bl2:
                 clear_bl = st.button("Vider la blacklist", use_container_width=True)
 
-            token_blacklist = current_bl
+            token_blacklist = parsed
             if clear_bl:
                 token_blacklist = []
+                st.session_state["token_blacklist_entries"] = []
+                st.session_state["token_blacklist_text"] = ""
                 st.success("Blacklist vidée.")
             elif save_bl:
-                parsed = []
-                for line in (bl_text or "").splitlines():
-                    line = (line or "").strip()
-                    if line:
-                        parsed.append(line)
-                # de-dup preserving order
-                token_blacklist = list(dict.fromkeys(parsed))
                 st.success(f"Blacklist enregistrée ({len(token_blacklist)} CA).")
 
         st.markdown("</div>", unsafe_allow_html=True)
@@ -327,7 +363,7 @@ def main() -> None:
     }
 
     # Add persisted UI preferences
-    cfg_update["token_blacklist"] = token_blacklist if "token_blacklist" in locals() else (cfg.get("token_blacklist") or [])
+    cfg_update["token_blacklist"] = st.session_state.get("token_blacklist_entries") or []
     cfg_update["visible_columns"] = visible_columns if "visible_columns" in locals() else (cfg.get("visible_columns") or [])
     cfg_update["max_display_rows"] = int(max_display_rows) if "max_display_rows" in locals() else int(cfg.get("max_display_rows", 200))
 
@@ -387,7 +423,9 @@ def main() -> None:
                         progress_callback=_progress_cb,
                     )
                 # Post-scan: apply blacklist to the displayed results
-                blocked = set([str(x).strip() for x in (cfg.get("token_blacklist") or []) if str(x).strip()])
+                blocked = set(
+                    [str(x).strip() for x in (st.session_state.get("token_blacklist_entries") or []) if str(x).strip()]
+                )
                 removed = 0
                 if blocked and runners:
                     before = len(runners)
@@ -426,7 +464,9 @@ def main() -> None:
 
     # Apply blacklist to the currently displayed dataframe (even without re-scanning)
     try:
-        blocked = set([str(x).strip() for x in (cfg.get("token_blacklist") or []) if str(x).strip()])
+        blocked = set(
+            [str(x).strip() for x in (st.session_state.get("token_blacklist_entries") or []) if str(x).strip()]
+        )
         if isinstance(df, pd.DataFrame) and (not df.empty) and blocked and ("tokenAddress" in df.columns):
             df = df[~df["tokenAddress"].astype(str).str.strip().isin(blocked)].copy()
             st.session_state["last_scan_df"] = df
@@ -497,17 +537,23 @@ def main() -> None:
     chosen = df.iloc[int(idx)].to_dict()
 
     c1, c2, c3 = st.columns(3)
+    gmgn_url = str(chosen.get("urlGMGN", "")) or "#"
+    dexscreener_url = str(chosen.get("urlDexscreener", "")) or "#"
     with c1:
         st.text_input("CA token sélectionné", value=str(chosen.get("tokenAddress", "")), disabled=True)
 
         if st.button("Blacklister ce token", use_container_width=True, key="blacklist_selected_token"):
             ca = str(chosen.get("tokenAddress", "")).strip()
             if ca:
-                bl = [str(x).strip() for x in (cfg.get("token_blacklist") or []) if str(x).strip()]
+                bl = st.session_state.get("token_blacklist_entries", [])
                 if ca not in bl:
                     bl.append(ca)
+                    st.session_state["token_blacklist_entries"] = bl
+                    st.session_state["token_blacklist_text"] = "\n".join(bl)
                     cfg["token_blacklist"] = bl
                     save_config(cfg)
+                else:
+                    st.info("Token déjà présent dans la blacklist.")
                 # Remove it from current displayed dataframe
                 try:
                     df_cur = st.session_state.get("last_scan_df")
@@ -516,28 +562,18 @@ def main() -> None:
                 except Exception:
                     pass
                 st.success("Token ajouté à la blacklist.")
-                st.rerun()
             else:
                 st.warning("Impossible de blacklister: tokenAddress vide.")
 
-        try:
-            st.link_button("Buy sur GMGN", url=str(chosen.get("urlGMGN", "")) or "#", width="stretch")
-        except Exception:
-            st.markdown(f"[Buy sur GMGN]({str(chosen.get('urlGMGN', '') or '#')})")
+        _render_external_link("Ouvrir sur GMGN", gmgn_url)
 
     with c2:
         st.text_input("Pair address (si utile)", value=str(chosen.get("pairAddress", "")), disabled=True)
-        try:
-            st.link_button("Sell sur GMGN", url=str(chosen.get("urlGMGN", "")) or "#", width="stretch")
-        except Exception:
-            st.markdown(f"[Sell sur GMGN]({str(chosen.get('urlGMGN', '') or '#')})")
+        st.caption("Le lien GMGN couvre BUY et SELL (pas de redémarrage Streamlit).")
 
     with c3:
         st.text_input("Dex (Dexscreener)", value=str(chosen.get("dexId", "")), disabled=True)
-        try:
-            st.link_button("Voir sur Dexscreener", url=str(chosen.get("urlDexscreener", "")) or "#", width="stretch")
-        except Exception:
-            st.markdown(f"[Voir sur Dexscreener]({str(chosen.get('urlDexscreener', '') or '#')})")
+        _render_external_link("Voir sur Dexscreener", dexscreener_url)
 
 
 if __name__ == "__main__":

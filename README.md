@@ -1,6 +1,13 @@
-# BOT
+# Paid Runners Scanner
 
-## Setup
+Dashboard Streamlit pour scanner les tokens Solana via Dexscreener et afficher les runners payants.
+
+## Prérequis
+- Python 3.10+
+- `pip install -r requirements.txt`
+
+## Démarrer le dashboard
+```bash
 python -m venv .venv
 
 # Windows (PowerShell):
@@ -12,5 +19,7 @@ source .venv/bin/activate
 
 pip install -r requirements.txt
 
-## Run
 streamlit run app.py
+```
+
+La configuration et la blacklist sont persistées dans `scanner_config.json`.
