@@ -2,8 +2,14 @@
 
 ## Setup
 python -m venv .venv
-# Windows:
-.venv\Scripts\activate
+
+# Windows (PowerShell):
+.venv\\Scripts\\Activate.ps1
+# Windows (cmd):
+.venv\\Scripts\\activate.bat
+# Linux/macOS:
+source .venv/bin/activate
+
 pip install -r requirements.txt
 
 ## Run
