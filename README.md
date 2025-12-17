@@ -9,7 +9,14 @@ Dashboard Streamlit pour scanner les tokens Solana via Dexscreener et afficher l
 ## Démarrer le dashboard
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # Sur Windows: .venv\Scripts\activate
+
+# Windows (PowerShell):
+.venv\\Scripts\\Activate.ps1
+# Windows (cmd):
+.venv\\Scripts\\activate.bat
+# Linux/macOS:
+source .venv/bin/activate
+
 pip install -r requirements.txt
 
 streamlit run app.py
