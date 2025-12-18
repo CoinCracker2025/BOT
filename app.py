@@ -34,6 +34,13 @@ def save_config(cfg: Dict[str, Any]) -> None:
         pass
 
 
+def _serialize_config(cfg: Dict[str, Any]) -> str:
+    try:
+        return json.dumps(cfg, ensure_ascii=False, sort_keys=True)
+    except Exception:
+        return ""
+
+
 def solana_get_balance(wallet: str, rpc_url: str, timeout_s: int = 12) -> Optional[float]:
     wallet = (wallet or "").strip()
     if not wallet:
@@ -117,6 +124,7 @@ def main() -> None:
     st.markdown(_STYLES, unsafe_allow_html=True)
 
     cfg = load_config()
+    cfg_serialized = _serialize_config(cfg)
 
     # Normalize / default new persisted settings
     if "token_blacklist" not in cfg:
@@ -369,7 +377,10 @@ def main() -> None:
 
     # Merge-save to avoid dropping unrelated keys
     cfg = {**cfg, **cfg_update}
-    save_config(cfg)
+    new_serialized = _serialize_config(cfg)
+    if new_serialized != cfg_serialized:
+        save_config(cfg)
+        cfg_serialized = new_serialized
 
     if "last_scan_debug" not in st.session_state:
         st.session_state["last_scan_debug"] = None
@@ -442,7 +453,10 @@ def main() -> None:
 
                 # Persist last scan timestamp only on successful scan
                 cfg["last_scan_ts"] = pd.Timestamp.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-                save_config(cfg)
+                new_serialized = _serialize_config(cfg)
+                if new_serialized != cfg_serialized:
+                    save_config(cfg)
+                    cfg_serialized = new_serialized
 
             except Exception as e:
                 st.session_state["last_scan_debug"] = {"error": repr(e)}
