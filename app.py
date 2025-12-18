@@ -112,9 +112,13 @@ _STYLES = """
 
 
 def _normalize_external_url(url: str) -> str:
-    if not url:
+    if url is None:
         return "#"
     cleaned = str(url).strip()
+
+    if cleaned in ("", "#") or cleaned.lower() in ("none", "nan"):
+        return "#"
+
     if cleaned.startswith(("http://", "https://")):
         return cleaned
     if cleaned.startswith("//"):
@@ -568,8 +572,8 @@ def main() -> None:
     chosen = df.iloc[int(idx)].to_dict()
 
     c1, c2, c3 = st.columns(3)
-    gmgn_url = str(chosen.get("urlGMGN", "")) or "#"
-    dexscreener_url = str(chosen.get("urlDexscreener", "")) or "#"
+    gmgn_url = str(chosen.get("urlGMGN", "")).strip()
+    dexscreener_url = str(chosen.get("urlDexscreener", "")).strip()
     with c1:
         st.text_input("CA token sélectionné", value=str(chosen.get("tokenAddress", "")), disabled=True)
 
