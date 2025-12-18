@@ -111,8 +111,21 @@ _STYLES = """
 """
 
 
+def _normalize_external_url(url: str) -> str:
+    if not url:
+        return "#"
+    cleaned = str(url).strip()
+    if cleaned.startswith(("http://", "https://")):
+        return cleaned
+    if cleaned.startswith("//"):
+        return f"https:{cleaned}"
+    if cleaned.startswith("www."):
+        return f"https://{cleaned}"
+    return f"https://{cleaned}"
+
+
 def _render_external_link(label: str, url: str) -> None:
-    safe_url = url or "#"
+    safe_url = _normalize_external_url(url)
     st.markdown(
         f'<a class="ext-link-btn" href="{safe_url}" target="_blank" rel="noopener noreferrer">{label}</a>',
         unsafe_allow_html=True,
