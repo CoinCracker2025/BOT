@@ -126,10 +126,7 @@ def _normalize_external_url(url: str) -> str:
 
 def _render_external_link(label: str, url: str) -> None:
     safe_url = _normalize_external_url(url)
-    st.markdown(
-        f'<a class="ext-link-btn" href="{safe_url}" target="_blank" rel="noopener noreferrer">{label}</a>',
-        unsafe_allow_html=True,
-    )
+    st.link_button(label, url=safe_url, use_container_width=True)
 
 
 def main() -> None:
