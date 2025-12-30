@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+import json
 import math
 import time
 
@@ -1140,3 +1141,68 @@ def scan_runners(
         out.extend((per_mode.get(m) or [])[: max(1, int(top_n_per_mode))])
     out.sort(key=lambda r: (_safe_float(r.get("spike_score")) if sort_by_spike else _safe_float(r.get("score"))), reverse=True)
     return out
+
+
+def run_connectivity_smoke_test(timeout_s: int = 8) -> Dict[str, Any]:
+    """Lightweight connectivity check for DexScreener endpoints.
+
+    Returns a dictionary keyed by endpoint name with a summary of whether data
+    was returned, how many items were seen and the raw debug payload captured
+    by the HTTP wrapper. Errors are caught so the function is safe to run in
+    CI environments with limited network access.
+    """
+
+    checks: Dict[str, Any] = {}
+
+    sources: Dict[str, Callable[..., Tuple[List[Dict[str, Any]], Dict[str, Any]]]] = {
+        "token_boosts_latest": fetch_token_boosts_latest,
+        "token_boosts_top": fetch_token_boosts_top,
+        "ads_latest": fetch_ads_latest,
+        "token_profiles_latest": fetch_token_profiles_latest,
+        "community_takeovers_latest": fetch_community_takeovers_latest,
+    }
+
+    for name, func in sources.items():
+        try:
+            data, dbg = func(timeout_s=timeout_s)
+            count = len(data) if isinstance(data, list) else 0
+            checks[name] = {
+                "ok": count > 0,
+                "count": count,
+                "debug": dbg,
+            }
+        except Exception as e:
+            checks[name] = {"ok": False, "count": 0, "error": repr(e)}
+
+    return checks
+
+
+def _main() -> None:
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Utilities for the paid runners bot")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Run a connectivity smoke test against DexScreener endpoints.",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=8,
+        help="Timeout (in seconds) to use for the smoke test requests.",
+    )
+
+    args = parser.parse_args()
+
+    if args.check:
+        results = run_connectivity_smoke_test(timeout_s=max(1, int(args.timeout)))
+        print(json.dumps(results, indent=2, ensure_ascii=False))
+    else:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    _main()
