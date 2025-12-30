@@ -23,3 +23,13 @@ streamlit run app.py
 ```
 
 La configuration et la blacklist sont persistées dans `scanner_config.json`.
+
+## Vérifier rapidement la connexion aux API DexScreener
+
+Pour vérifier que les endpoints publics DexScreener sont accessibles depuis la machine courante, lance une vérification légère :
+
+```bash
+python paid_runners_bot.py --check
+```
+
+Les résultats détaillent le statut de chaque endpoint interrogé ainsi que le debug HTTP.
